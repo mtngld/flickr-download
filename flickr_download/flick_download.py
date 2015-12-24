@@ -20,6 +20,7 @@ from dateutil import parser
 import yaml
 
 from flickr_download.filename_handlers import get_filename_handler
+from flickr_download.filename_handlers import get_filename_handler_help
 from flickr_download.utils import get_full_path
 
 CONFIG_FILE = "~/.flickr_download"
@@ -104,14 +105,20 @@ def download_set(set_id, get_filename, size_label=None):
                 break
             raise
 
-    if not os.path.exists(pset.owner.id):
-        os.mkdir(pset.owner.id)
 
-    if not os.path.exists(os.path.join(pset.owner.id,pset.title)):
-        os.mkdir(os.path.join(pset.owner.id,pset.title))
+        os.mkdir()
+
+    # we need to convert pathname separator to something else to create a valid directory
+    ownerdir = (pset.owner.id).replace(os.sep, "_")
+    if not os.path.exists(ownerdir):
+        os.mkdir(ownerdir)
+
+    dirname = os.path.join(ownerdir,(pset.title).replace(os.sep, "_"))
+    if not os.path.exists(dirname):
+        os.mkdir(dirname)
 
     for photo in photos:
-        fname = get_full_path(pset.owner.id,pset.title, get_filename(pset, photo, suffix))
+        fname = get_full_path(dirname, get_filename(pset, photo, suffix))
         if os.path.exists(fname):
             # TODO: Ideally we should check for file size / md5 here
             # to handle failed downloads.
@@ -185,7 +192,26 @@ def print_sets(username):
 
 
 def main():
-    parser = argparse.ArgumentParser('Download a Flickr Set')
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawTextHelpFormatter,
+        description='Downloads one or more Flickr photo sets.\n'
+        '\n'
+        'To use it you need to get your own Flickr API key here:\n'
+        'https://www.flickr.com/services/api/misc.api_keys.html\n'
+        '\n'
+        'For more information see:\n'
+        'https://github.com/beaufour/flickr-download',
+        epilog='examples:\n'
+        '  list all sets for a user:\n'
+        '  > {app} -k <api_key> -s <api_secret> -l beaufour\n'
+        '\n'
+        '  download a given set:\n'
+        '  > {app} -k <api_key> -s <api_secret> -d 72157622764287329\n'
+        '\n'
+        '  download a given set, keeping duplicate names:\n'
+        '  > {app} -k <api_key> -s <api_secret> -d 72157622764287329 -n title_increment\n'
+        .format(app=sys.argv[0])
+    )
     parser.add_argument('-k', '--api_key', type=str,
                         help='Flickr API key')
     parser.add_argument('-s', '--api_secret', type=str,
@@ -204,9 +230,15 @@ def main():
                         default='title', help='Photo naming mode')
     parser.add_argument('-f', '--find',type=str,
                         help='Find tags and download')
+    parser.add_argument('-m', '--list_naming', action='store_true',
+                        help='List naming modes')
     parser.set_defaults(**_load_defaults())
 
     args = parser.parse_args()
+
+    if args.list_naming:
+        print(get_filename_handler_help())
+        return 1
 
     if not args.api_key or not args.api_secret:
         print ('You need to pass in both "api_key" and "api_secret" arguments', file=sys.stderr)
@@ -218,7 +250,9 @@ def main():
 
     if args.list:
         print_sets(args.list)
-    elif args.download or args.download_user or args.find:
+        return 0
+
+    if args.download or args.download_user or args.find:
         try:
             get_filename = get_filename_handler(args.naming)
             if args.download:
@@ -229,10 +263,11 @@ def main():
                 download_user(args.download_user, get_filename, args.quality)
         except KeyboardInterrupt:
             print('Forcefully aborting. Last photo download might be partial :(', file=sys.stderr)
-    else:
-        print('ERROR: Must pass either --list or --download\n', file=sys.stderr)
-        parser.print_help()
-        return 1
+        return 0
+
+    print('ERROR: Must pass either --list or --download\n', file=sys.stderr)
+    parser.print_help()
+    return 1
 
 if __name__ == '__main__':
     sys.exit(main())

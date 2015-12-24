@@ -14,7 +14,7 @@ def sanitize_filepath(fname):
     return ret
 
 
-def get_full_path(owner,pset, photo):
+def get_full_path(pset, photo):
     """
     Assemble a full path from the owner, photoset and photo titles
 
@@ -23,4 +23,4 @@ def get_full_path(owner,pset, photo):
     @param photo: str, photo name
     @return: str, full sanitized path
     """
-    return os.path.join(sanitize_filepath(owner),sanitize_filepath(pset), sanitize_filepath(photo))
+    return os.path.join(pset, sanitize_filepath(photo))
