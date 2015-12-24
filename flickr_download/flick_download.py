@@ -104,11 +104,14 @@ def download_set(set_id, get_filename, size_label=None):
                 break
             raise
 
-    if not os.path.exists(pset.title):
-        os.mkdir(pset.title)
+    if not os.path.exists(pset.owner.id):
+        os.mkdir(pset.owner.id)
+
+    if not os.path.exists(os.path.join(pset.owner.id,pset.title)):
+        os.mkdir(os.path.join(pset.owner.id,pset.title))
 
     for photo in photos:
-        fname = get_full_path(pset.title, get_filename(pset, photo, suffix))
+        fname = get_full_path(pset.owner.id,pset.title, get_filename(pset, photo, suffix))
         if os.path.exists(fname):
             # TODO: Ideally we should check for file size / md5 here
             # to handle failed downloads.
@@ -138,6 +141,36 @@ def download_user(username, get_filename, size_label):
     for photoset in photosets:
         download_set(photoset.id, get_filename, size_label)
 
+def download_tags(tag, get_filename, size_label):
+    """
+    Search and download tags from flickr
+
+    @param tags: str, tags
+    @param get_filename: Function, function that creates a filename for the photo
+    @param size_label: str|None, size to download (or None for largest available)
+    """
+
+    w = Flickr.Walker(Flickr.Photo.search, tags=tag)
+
+    if not os.path.exists(tag):
+        os.mkdir(tag)
+
+    for photo in w:
+        fname = get_full_path(tag, photo.id + '_' + photo.secret + '.jpg')
+        if os.path.exists(fname):
+            # TODO: Ideally we should check for file size / md5 here
+            # to handle failed downloads.
+            print('Skipping {0}, as it exists already'.format(fname))
+            continue
+
+        print('Saving: {0}'.format(fname))
+        try:
+            photo.save(fname, size_label)
+        except:
+            print ("Unexpected error:" +sys.exc_info()[0])
+
+        #except HTTPError  as err:
+        #    print("HTTPError: {} ({})".format(url_path, err.code))
 
 def print_sets(username):
     """
@@ -169,6 +202,8 @@ def main():
                         default=None, help='Quality of the picture')
     parser.add_argument('-n', '--naming', type=str, metavar='NAMING_MODE',
                         default='title', help='Photo naming mode')
+    parser.add_argument('-f', '--find',type=str,
+                        help='Find tags and download')
     parser.set_defaults(**_load_defaults())
 
     args = parser.parse_args()
@@ -183,11 +218,13 @@ def main():
 
     if args.list:
         print_sets(args.list)
-    elif args.download or args.download_user:
+    elif args.download or args.download_user or args.find:
         try:
             get_filename = get_filename_handler(args.naming)
             if args.download:
                 download_set(args.download, get_filename, args.quality)
+            elif args.find:
+                download_tags(args.find,get_filename,args.quality)
             else:
                 download_user(args.download_user, get_filename, args.quality)
         except KeyboardInterrupt:
